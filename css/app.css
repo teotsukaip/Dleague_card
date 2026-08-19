@@ -74,6 +74,82 @@ html, body {
   background: transparent;
 }
 
+#overlay[data-state="recognized"] {
+  background:
+    radial-gradient(circle at 50% 46%, rgba(212, 175, 55, 0.32), transparent 48%);
+  animation: recognize-flash 420ms ease;
+}
+#overlay[data-state="recognized"] .title {
+  color: var(--gold);
+  text-shadow: 0 0 22px rgba(212, 175, 55, 0.55);
+}
+#overlay[data-state="recognized"] .scan-frame {
+  transform: scale(1.04);
+}
+#overlay[data-state="recognized"] .scan-frame i {
+  width: 50%;
+  height: 50%;
+  border-width: 3px;
+  box-shadow: 0 0 18px rgba(212, 175, 55, 0.85);
+}
+#overlay[data-state="recognized"] .scan-line,
+#overlay[data-state="recognized"] .scan-frame img {
+  display: none;
+}
+#overlay[data-state="recognized"] .logo-mark {
+  display: block;
+  transform: scale(1.06);
+}
+
+.recognize-check {
+  display: none;
+  position: absolute;
+  inset: 0;
+  place-items: center;
+  font-size: 72px;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 0 24px rgba(212, 175, 55, 0.8);
+}
+#overlay[data-state="recognized"] .recognize-check,
+#overlay[data-state="found"] .recognize-check {
+  display: grid;
+  animation: recognize-pop 280ms ease;
+}
+
+.recognize-toast {
+  position: fixed;
+  top: max(18px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 50;
+  transform: translate(-50%, -12px);
+  opacity: 0;
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--green-deep);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+#overlay[data-state="recognized"] .recognize-toast,
+#overlay[data-state="found"] .recognize-toast {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@keyframes recognize-flash {
+  0% { background-color: rgba(212, 175, 55, 0.38); }
+  100% { background-color: transparent; }
+}
+@keyframes recognize-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 #overlay[data-state="found"],
 #overlay[data-state="portal"],
 #overlay[data-state="handoff"] {
@@ -162,6 +238,7 @@ h1, .title {
   padding: 10px 16px;
 }
 .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+#overlay[data-state="recognized"] .actions,
 #overlay[data-state="scanning"] .actions,
 #overlay[data-state="found"] .actions,
 #overlay[data-state="portal"] .actions,
@@ -171,6 +248,18 @@ h1, .title {
 }
 #overlay[data-state="scanning"] .logo-mark,
 #overlay[data-state="handoff"] .logo-mark {
+  display: none;
+}
+#continue-btn { display: none; }
+#overlay[data-state="tap"] #continue-btn { display: inline-flex; }
+#overlay[data-state="tap"] #start-btn,
+#overlay[data-state="tap"] #retry-btn {
+  display: none;
+}
+#overlay[data-state="tap"] .scan-frame {
+  display: none;
+}
+#overlay[data-state="error"] #continue-btn {
   display: none;
 }
 
@@ -184,6 +273,7 @@ h1, .title {
   transition: opacity 280ms ease, transform 280ms ease;
 }
 #overlay[data-state="scanning"] .scan-frame,
+#overlay[data-state="recognized"] .scan-frame,
 #overlay[data-state="handoff"] .scan-frame {
   opacity: 1;
   transform: none;

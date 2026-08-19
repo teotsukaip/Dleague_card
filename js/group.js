@@ -11,6 +11,7 @@ import {
   waitEvent,
   prefersMock,
   GoldDust,
+  stopAR,
 } from "./shared.js";
 
 const params = new URLSearchParams(location.search);
@@ -52,12 +53,25 @@ function bindTarget(sceneEl) {
   target.addEventListener("targetLost", onLost);
 }
 
-async function startAR() {
+function showTapToContinue() {
+  setOverlayState("tap");
+  setCopy("タップして続ける", "カメラの再開には画面を一度タップしてください");
+}
+
+let starting = false;
+
+async function startAR({ fromHandoff = false } = {}) {
+  if (starting) return;
+  starting = true;
+
   setOverlayState("prepare");
   setCopy("人物マーカーを準備しています", group.name);
   setProgress(8);
 
   try {
+    await stopAR();
+    $("#ar-root").innerHTML = "";
+
     const mindUrl = await resolveMindUrl(
       "hito",
       group.peopleMind,
@@ -90,15 +104,24 @@ async function startAR() {
       `,
     });
 
-    sceneEl.addEventListener("arError", () => {
-      setOverlayState("error");
-      setCopy("カメラを起動できませんでした", "画面をタップして再試行してください");
-    });
-
-    await Promise.race([
-      waitEvent(sceneEl, "arReady"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 20000)),
-    ]);
+    const cameraWaitMs = fromHandoff ? 4000 : 20000;
+    let cameraTimer = 0;
+    try {
+      await Promise.race([
+        waitEvent(sceneEl, "arReady"),
+        waitEvent(sceneEl, "arError").then(() => {
+          throw new Error("arError");
+        }),
+        new Promise((_, reject) => {
+          cameraTimer = window.setTimeout(
+            () => reject(new Error("camera-timeout")),
+            cameraWaitMs
+          );
+        }),
+      ]);
+    } finally {
+      window.clearTimeout(cameraTimer);
+    }
 
     $("#freeze")?.classList.remove("is-on");
     goScanning();
@@ -106,8 +129,15 @@ async function startAR() {
     clearHandoff();
   } catch (err) {
     console.error(err);
+    await stopAR();
+    if (fromHandoff) {
+      showTapToContinue();
+      return;
+    }
     setOverlayState("error");
-    setCopy("準備に失敗しました", err.message || "compile.html で .mind を生成してください");
+    setCopy("準備に失敗しました", "画面をタップして再試行してください");
+  } finally {
+    starting = false;
   }
 }
 
@@ -126,20 +156,25 @@ function beginFromHandoff() {
   dust.burst();
 }
 
-$("#start-btn").addEventListener("click", () => {
+function beginWithGesture() {
   if (prefersMock()) startMock();
-  else startAR();
-});
+  else startAR({ fromHandoff: false });
+}
 
-$("#retry-btn")?.addEventListener("click", () => startAR());
+$("#start-btn").addEventListener("click", beginWithGesture);
+$("#retry-btn")?.addEventListener("click", beginWithGesture);
+$("#continue-btn")?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  beginWithGesture();
+});
+$("#overlay").addEventListener("click", () => {
+  if ($("#overlay")?.dataset.state !== "tap") return;
+  beginWithGesture();
+});
 
 if (handoff && !prefersMock()) {
   beginFromHandoff();
-  // 遷移元でカメラ許可済み。iOS ではジェスチャが切れることがあるので失敗時はタップへ。
-  startAR().catch(() => {
-    setOverlayState("tap");
-    setCopy("続きを表示", "画面をタップすると人物スキャンが始まります");
-  });
+  startAR({ fromHandoff: true });
 } else if (handoff && prefersMock()) {
   beginFromHandoff();
   setTimeout(startMock, 700);

@@ -20,7 +20,10 @@ const progressBar = $("#progress-bar");
 const dust = GoldDust($("#dust"));
 dust.start();
 
-let found = false;
+const LOCK_MS = 400;
+
+let locked = false;
+let lockTimer = 0;
 let driftTimer = 0;
 
 function setProgress(p) {
@@ -37,7 +40,7 @@ async function playPortalAndGo() {
   clearInterval(driftTimer);
   dust.burst();
   setOverlayState("found");
-  setCopy("CyberAgent legit", "グループへ接続しています");
+  setCopy("認識しました", "CyberAgent legit へ接続しています");
 
   await new Promise((r) => setTimeout(r, 720));
 
@@ -66,15 +69,32 @@ async function playPortalAndGo() {
 
 function bindTarget(sceneEl) {
   const target = sceneEl.querySelector("[mindar-image-target]");
+
   target.addEventListener("targetFound", () => {
-    if (found) return;
-    found = true;
-    playPortalAndGo();
+    if (locked) return;
+    setOverlayState("recognized");
+    setCopy("認識しました", "CyberAgent legit");
+    dust.burst();
+    window.clearTimeout(lockTimer);
+    lockTimer = window.setTimeout(() => {
+      if (locked) return;
+      locked = true;
+      playPortalAndGo();
+    }, LOCK_MS);
+  });
+
+  target.addEventListener("targetLost", () => {
+    if (locked) return;
+    window.clearTimeout(lockTimer);
+    lockTimer = 0;
+    setOverlayState("scanning");
+    setCopy("ロゴをかざしてください", "カード右下の CyberAgent legit を枠に入れてください");
   });
 }
 
 async function startAR() {
-  found = false;
+  locked = false;
+  window.clearTimeout(lockTimer);
   setOverlayState("prepare");
   setCopy("マーカーを準備しています", "初回のみ数秒かかることがあります");
   setProgress(6);
@@ -125,11 +145,17 @@ async function startAR() {
 
 function startMock() {
   goScanning();
-  setTimeout(() => {
-    if (found) return;
-    found = true;
-    playPortalAndGo();
-  }, 2200);
+  window.setTimeout(() => {
+    if (locked) return;
+    setOverlayState("recognized");
+    setCopy("認識しました", "CyberAgent legit");
+    dust.burst();
+    window.setTimeout(() => {
+      if (locked) return;
+      locked = true;
+      playPortalAndGo();
+    }, LOCK_MS);
+  }, 1800);
 }
 
 $("#start-btn").addEventListener("click", () => {
