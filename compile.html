@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mind コンパイル</title>
+    <style>
+      body {
+        font-family: "Hiragino Sans", sans-serif;
+        background: #07110d;
+        color: #f3e6c4;
+        max-width: 640px;
+        margin: 48px auto;
+        padding: 0 20px;
+        line-height: 1.6;
+      }
+      button {
+        background: #d4af37;
+        border: 0;
+        padding: 12px 18px;
+        border-radius: 999px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      pre {
+        white-space: pre-wrap;
+        background: #10211a;
+        padding: 16px;
+        border-radius: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ターゲットコンパイル</h1>
+    <p>logo.png と hito.png から MindAR 用の .mind を生成し、サーバーへ保存します。</p>
+    <p id="status">準備中…</p>
+    <pre id="log"></pre>
+    <p><button id="run" type="button">コンパイル開始</button></p>
+    <script type="module">
+      import "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js";
+
+      const logEl = document.getElementById("log");
+      const statusEl = document.getElementById("status");
+      const log = (msg) => {
+        logEl.textContent += msg + "\n";
+      };
+
+      const loadImage = (src) =>
+        new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+        });
+
+      async function compileOne(key, src) {
+        statusEl.textContent = key + " をコンパイル中";
+        log("compile " + key + " from " + src);
+        const img = await loadImage(src);
+        const compiler = new window.MINDAR.IMAGE.Compiler();
+        await compiler.compileImageTargets([img], (p) => {
+          statusEl.textContent = key + " " + p.toFixed(1) + "%";
+        });
+        const buffer = await compiler.exportData();
+        const res = await fetch("/api/mind", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "X-Mind-Key": key,
+          },
+          body: buffer,
+        });
+        if (!res.ok) throw new Error("save failed: " + res.status);
+        log("saved assets/" + key + ".mind (" + buffer.byteLength + " bytes)");
+        return buffer.byteLength;
+      }
+
+      async function run() {
+        logEl.textContent = "";
+        try {
+          if (!window.MINDAR?.IMAGE?.Compiler) {
+            throw new Error("MINDAR.IMAGE.Compiler が見つかりません");
+          }
+          await compileOne("logo", "./assets/markers/logo.png");
+          await compileOne("hito", "./assets/markers/hito.png");
+          statusEl.textContent = "完了。index.html を開いてください";
+          log("done");
+        } catch (err) {
+          statusEl.textContent = "失敗";
+          log(String(err && err.stack ? err.stack : err));
+        }
+      }
+
+      document.getElementById("run").addEventListener("click", run);
+      if (new URLSearchParams(location.search).get("auto") === "1") run();
+      else statusEl.textContent = "コンパイル開始を押してください";
+    </script>
+  </body>
+</html>
